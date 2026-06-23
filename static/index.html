@@ -14,7 +14,7 @@
     --muted:    #71717a;
     --accent:   #6366f1;
     --accent2:  #818cf8;
-    --thumb-r:  4px;
+    --thumb-r:  14px;
   }
 
   body {
@@ -33,8 +33,7 @@
     align-items: center;
     gap: 12px;
     padding: 8px 14px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
+    background: var(--bg);
     flex-shrink: 0;
     z-index: 10;
   }
@@ -44,151 +43,78 @@
   .sep { flex: 1; }
 
   #btn-map {
-    font-size: 12px; padding: 4px 12px;
-    background: var(--accent); color: #fff; border: none;
-    border-radius: 5px; cursor: pointer; display: none;
+    font-size: 12px; padding: 6px 14px; font-weight: 600;
+    background: var(--surface); color: var(--text); border: none;
+    border-radius: 20px; cursor: pointer; display: none;
+    transition: background 0.15s;
   }
-  #btn-map:hover { background: var(--accent2); }
+  #btn-map:hover { background: var(--border); }
 
   /* ── main area ── */
   #main {
     flex: 1;
-    display: grid;
-    grid-template-columns: 1fr;
-    overflow: hidden;
     position: relative;
+    overflow: hidden;
   }
 
   /* ── canvas map ── */
   #canvas-wrap {
     position: relative;
-    overflow: hidden;
-    cursor: grab;
     width: 100%;
     height: 100%;
+    cursor: grab;
   }
   #canvas-wrap.grabbing { cursor: grabbing; }
   #map-canvas { display: block; }
 
-  /* ── neighbors grid ── */
+  /* ── neighbors view (Pinterest Masonry) ── */
   #neighbors-view {
     display: none;
-    flex-direction: column;
-    overflow: hidden;
     height: 100%;
-  }
-  #neighbors-view.active { display: flex; }
-
-  #neighbors-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-  #neighbors-header img {
-    width: 56px; height: 56px;
-    object-fit: cover;
-    border-radius: var(--thumb-r);
-    flex-shrink: 0;
-  }
-  #neighbors-header .nb-title { font-size: 13px; color: var(--text); }
-  #neighbors-header .nb-sub   { font-size: 11px; color: var(--muted); margin-top: 2px; word-break: break-all; }
-
-  #neighbors-grid {
-    flex: 1;
     overflow-y: auto;
-    padding: 12px;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 6px;
-    align-content: start;
-  }
-  .nb-thumb {
-    aspect-ratio: 1;
-    overflow: hidden;
-    border-radius: var(--thumb-r);
-    cursor: pointer;
-    position: relative;
-    background: var(--surface);
-  }
-  .nb-thumb img {
-    width: 100%; height: 100%;
-    object-fit: cover;
-    display: block;
-    transition: opacity .15s;
-  }
-  .nb-thumb:hover img { opacity: .85; }
-  .nb-thumb:hover .nb-rank { opacity: 1; }
-  .nb-rank {
-    position: absolute; top: 4px; left: 4px;
-    background: rgba(0,0,0,.65);
-    color: #fff; font-size: 10px;
-    padding: 1px 5px; border-radius: 3px;
-    opacity: 0; transition: opacity .15s;
-  }
-
-  /* ── detail / metadata panel ── */
-  #detail-panel {
-    position: absolute;
-    bottom: 0; right: 0;
-    width: 280px;
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-    border-left: 1px solid var(--border);
-    border-radius: 8px 0 0 0;
-    padding: 14px;
-    display: none;
-    flex-direction: column;
-    gap: 10px;
-    z-index: 20;
-    max-height: 60vh;
-    overflow-y: auto;
-  }
-  #detail-panel.open { display: flex; }
-  #detail-panel .dp-close {
-    position: absolute; top: 8px; right: 10px;
-    font-size: 18px; cursor: pointer; color: var(--muted);
-    background: none; border: none;
-  }
-  #detail-panel .dp-close:hover { color: var(--text); }
-  #detail-preview {
-    width: 100%; max-height: 180px;
-    object-fit: contain;
-    border-radius: var(--thumb-r);
+    padding: 24px;
     background: var(--bg);
   }
-  .dp-field { display: flex; flex-direction: column; gap: 4px; }
-  .dp-field label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
-  .dp-field input, .dp-field textarea {
-    background: var(--bg); border: 1px solid var(--border);
-    color: var(--text); font: 13px/1.5 system-ui, sans-serif;
-    padding: 5px 8px; border-radius: 5px; width: 100%;
-    resize: none;
-  }
-  .dp-field input:focus, .dp-field textarea:focus {
-    outline: none; border-color: var(--accent);
-  }
-  .dp-filename { font-size: 12px; color: var(--muted); word-break: break-all; }
-  .dp-save {
-    font-size: 12px; padding: 5px 0;
-    background: var(--accent); color: #fff;
-    border: none; border-radius: 5px; cursor: pointer; width: 100%;
-  }
-  .dp-save:hover { background: var(--accent2); }
-  .dp-saved { color: #4ade80; font-size: 12px; text-align: center; display: none; }
+  #neighbors-view.active { display: block; }
 
-  /* ── tooltip ── */
-  #tooltip {
-    position: fixed;
-    pointer-events: none;
-    background: rgba(0,0,0,.8);
-    color: #fff; font-size: 11px;
-    padding: 4px 8px; border-radius: 4px;
-    display: none; z-index: 100;
-    max-width: 300px; word-break: break-all;
+  #masonry-container {
+    position: relative;
+    width: 100%;
+    max-width: 2200px; /* Optional cap so it doesn't get insanely wide on 4k displays */
+    margin: 0 auto;
   }
+
+  .masonry-item {
+    position: absolute;
+    top: 0; left: 0;
+    border-radius: var(--thumb-r);
+    overflow: hidden;
+    background: var(--surface);
+    cursor: zoom-in;
+    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .masonry-item img {
+    width: 100%; height: 100%;
+    object-fit: cover; /* Contain inside naturally proportional boxes */
+    display: block;
+    transition: opacity 0.15s;
+  }
+
+  .masonry-item:not(.masonry-main):hover img {
+    opacity: 0.8;
+  }
+
+  .nb-rank {
+    position: absolute; top: 8px; left: 8px;
+    background: rgba(0,0,0,0.65);
+    color: #fff; font-size: 10px; font-weight: 600;
+    padding: 2px 6px; border-radius: 6px;
+    opacity: 0; transition: opacity 0.15s;
+    pointer-events: none;
+  }
+  .masonry-item:hover .nb-rank { opacity: 1; }
+
 </style>
 </head>
 <body>
@@ -197,7 +123,7 @@
   <h1>imagepile</h1>
   <span id="status">loading …</span>
   <div class="sep"></div>
-  <button id="btn-map">← back to map</button>
+  <button id="btn-map">← Back to Map</button>
 </div>
 
 <div id="main">
@@ -206,51 +132,19 @@
   </div>
 
   <div id="neighbors-view">
-    <div id="neighbors-header">
-      <img id="nb-query-thumb" src="" alt="">
-      <div>
-        <div class="nb-title" id="nb-query-name"></div>
-        <div class="nb-sub"  id="nb-query-path"></div>
-      </div>
-    </div>
-    <div id="neighbors-grid"></div>
-  </div>
-
-  <div id="detail-panel">
-    <button class="dp-close" id="dp-close">×</button>
-    <img id="detail-preview" src="" alt="">
-    <div class="dp-filename" id="dp-filename"></div>
-    <div class="dp-field">
-      <label>Tags</label>
-      <input type="text" id="dp-tags" placeholder="comma separated …">
-    </div>
-    <div class="dp-field">
-      <label>Source</label>
-      <input type="text" id="dp-source" placeholder="url or note …">
-    </div>
-    <div class="dp-field">
-      <label>Comment</label>
-      <textarea id="dp-comment" rows="3" placeholder="notes …"></textarea>
-    </div>
-    <button class="dp-save" id="dp-save">Save</button>
-    <div class="dp-saved" id="dp-saved">Saved ✓</div>
+    <div id="masonry-container"></div>
   </div>
 </div>
-
-<div id="tooltip"></div>
 
 <script>
 // ============================================================
 //  State
 // ============================================================
 
-const THUMB_FETCH_SIZE = 200;   // px requested from server
-const MAP_THUMB_SIZE   = 32;    // px drawn on canvas at zoom=1
-const MAP_DOT_SIZE     = 5;     // dot drawn at low zoom
-const ZOOM_THUMB_MIN   = 1.2;  // show thumbnails above this zoom
-const PREFETCH_MARGIN  = 1.5;   // prefetch slightly outside viewport
-const LRU_MAX          = 2500;  // image cache size
-const NEIGHBORS_COUNT  = 48;
+const MAP_THUMB_SIZE   = 32;
+const ZOOM_THUMB_MIN   = 1.2;
+const PREFETCH_MARGIN  = 1.5;
+const LRU_MAX          = 2500;
 
 const canvas  = document.getElementById('map-canvas');
 const ctx     = canvas.getContext('2d');
@@ -258,18 +152,19 @@ const wrap    = document.getElementById('canvas-wrap');
 const status  = document.getElementById('status');
 const btnMap  = document.getElementById('btn-map');
 
-let items = [];          // [{id, x, y}]  — UMAP coords, x/y in [0,1]
-let viewMode = 'map';    // 'map' | 'neighbors'
-let currentDetailId = null;
+let items = [];
+let viewMode = 'map';
 
-// Viewport: world coords (in pixels at zoom=1 where canvas is worldW x worldH)
+let masonryItems = [];
+let masonryMain = null;
+let resizeTimer = null;
+
 let vp = { tx: 0, ty: 0, scale: 1 };
 
-// Image cache: id -> HTMLImageElement (loaded) or 'loading'
 const imgCache = new Map();
 const lruOrder = [];
 
-function lruGet(id)       { return imgCache.get(id); }
+function lruGet(id) { return imgCache.get(id); }
 function lruSet(id, val) {
   if (imgCache.has(id)) {
     lruOrder.splice(lruOrder.indexOf(id), 1);
@@ -298,20 +193,27 @@ function lruSet(id, val) {
 })();
 
 // ============================================================
-//  Canvas sizing
+//  Canvas sizing & Event listeners
 // ============================================================
 
 function resizeCanvas() {
   canvas.width  = wrap.clientWidth;
   canvas.height = wrap.clientHeight;
 }
-window.addEventListener('resize', () => { resizeCanvas(); draw(); });
+
+window.addEventListener('resize', () => {
+  resizeCanvas();
+  if (viewMode === 'map') scheduleDraw();
+  if (viewMode === 'neighbors') {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(layoutMasonry, 50);
+  }
+});
 
 // ============================================================
 //  Coordinate helpers
 // ============================================================
 
-// World space: images laid out in a [0,1]×[0,1] box scaled to worldW×worldH
 const worldW = () => canvas.width  * 3;
 const worldH = () => canvas.height * 3;
 
@@ -330,7 +232,6 @@ function screenToWorld(sx, sy) {
 }
 
 function fitAll() {
-  // Fit entire world into the canvas with a bit of padding
   const pad = 0.05;
   vp.scale = 1 - pad * 2;
   vp.tx = canvas.width  * pad;
@@ -357,7 +258,6 @@ function draw() {
   const thumbHalf = (MAP_THUMB_SIZE / 2) * vp.scale;
   const showThumbs = vp.scale >= ZOOM_THUMB_MIN;
 
-  // Viewport bounds in world coords for culling
   const tl = screenToWorld(-thumbHalf * PREFETCH_MARGIN, -thumbHalf * PREFETCH_MARGIN);
   const br = screenToWorld(canvas.width  + thumbHalf * PREFETCH_MARGIN,
                             canvas.height + thumbHalf * PREFETCH_MARGIN);
@@ -376,7 +276,6 @@ function draw() {
       const img = lruGet(it.id);
 
       if (!img) {
-        // Start loading, draw placeholder dot
         startLoad(it.id);
         drawDot(sx, sy, 4, '#3f3f50');
       } else if (img === 'loading') {
@@ -387,7 +286,7 @@ function draw() {
         if (inViewport) drawThumb(img, sx, sy, thumbHalf * 2);
       }
     } else {
-      drawDot(sx, sy, MAP_DOT_SIZE * vp.scale, '#6366f1');
+      drawDot(sx, sy, 5 * vp.scale, '#6366f1');
     }
   }
 }
@@ -416,7 +315,7 @@ function startLoad(id) {
   const img = new Image();
   img.onload  = () => { lruSet(id, img); scheduleDraw(); };
   img.onerror = () => { lruSet(id, 'error'); };
-  img.src = `/api/thumbnail/${id}?size=${THUMB_FETCH_SIZE}`;
+  img.src = `/api/thumbnail/${id}?size=200`;
 }
 
 // ============================================================
@@ -433,10 +332,7 @@ wrap.addEventListener('mousedown', e => {
 });
 
 wrap.addEventListener('mousemove', e => {
-  if (!drag) {
-    updateTooltip(e);
-    return;
-  }
+  if (!drag) return;
   const dx = e.clientX - drag.startX;
   const dy = e.clientY - drag.startY;
   if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
@@ -456,7 +352,6 @@ wrap.addEventListener('mouseup', e => {
 wrap.addEventListener('mouseleave', () => {
   drag = null;
   wrap.classList.remove('grabbing');
-  hideTooltip();
 });
 
 wrap.addEventListener('wheel', e => {
@@ -469,7 +364,6 @@ wrap.addEventListener('wheel', e => {
   scheduleDraw();
 }, { passive: false });
 
-// Pinch-to-zoom (trackpad / touch)
 let lastPinchDist = null;
 wrap.addEventListener('touchstart', e => {
   if (e.touches.length === 2) lastPinchDist = pinchDist(e);
@@ -493,7 +387,7 @@ function pinchDist(e) {
 }
 
 // ============================================================
-//  Hit testing
+//  Hit testing & Navigation
 // ============================================================
 
 function hitTest(sx, sy) {
@@ -513,173 +407,124 @@ function hitTest(sx, sy) {
 
 function handleMapClick(sx, sy) {
   const hit = hitTest(sx, sy);
-  if (hit) openDetail(hit.id);
-}
-
-// ============================================================
-//  Tooltip on hover
-// ============================================================
-
-const tooltip = document.getElementById('tooltip');
-let hoverItem = null;
-
-function updateTooltip(e) {
-  const hit = hitTest(e.clientX, e.clientY);
-  if (hit && hit !== hoverItem) {
-    hoverItem = hit;
-    fetch(`/api/image/${hit.id}/info`)
-      .then(r => r.json())
-      .then(info => {
-        tooltip.textContent = info.filename;
-        tooltip.style.display = 'block';
-      });
-  } else if (!hit) {
-    hoverItem = null;
-    hideTooltip();
-  }
-  if (hit) {
-    tooltip.style.left = (e.clientX + 12) + 'px';
-    tooltip.style.top  = (e.clientY - 8) + 'px';
-  }
-}
-
-function hideTooltip() {
-  tooltip.style.display = 'none';
-}
-
-// ============================================================
-//  Detail panel (metadata)
-// ============================================================
-
-const detailPanel  = document.getElementById('detail-panel');
-const detailImg    = document.getElementById('detail-preview');
-const detailName   = document.getElementById('dp-filename');
-const dpTags       = document.getElementById('dp-tags');
-const dpSource     = document.getElementById('dp-source');
-const dpComment    = document.getElementById('dp-comment');
-const dpSave       = document.getElementById('dp-save');
-const dpSaved      = document.getElementById('dp-saved');
-
-document.getElementById('dp-close').addEventListener('click', () => {
-  detailPanel.classList.remove('open');
-  currentDetailId = null;
-});
-
-async function openDetail(id) {
-  currentDetailId = id;
-  const info = await fetch(`/api/image/${id}/info`).then(r => r.json());
-  detailImg.src   = `/api/thumbnail/${id}?size=400`;
-  detailName.textContent = info.filename;
-  dpTags.value    = info.tags;
-  dpSource.value  = info.source;
-  dpComment.value = info.comment;
-  dpSaved.style.display = 'none';
-  detailPanel.classList.add('open');
-}
-
-dpSave.addEventListener('click', async () => {
-  if (!currentDetailId) return;
-  await fetch(`/api/image/${currentDetailId}/meta`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      tags: dpTags.value, source: dpSource.value, comment: dpComment.value
-    }),
-  });
-  dpSaved.style.display = 'block';
-  setTimeout(() => { dpSaved.style.display = 'none'; }, 1800);
-});
-
-// Double-click image in detail panel → open full res
-detailImg.addEventListener('dblclick', () => {
-  if (currentDetailId) window.open(`/api/image/${currentDetailId}/full`, '_blank');
-});
-detailImg.title = 'Double-click to open full resolution';
-
-// ============================================================
-//  Neighbors view
-// ============================================================
-
-const neighborsView   = document.getElementById('neighbors-view');
-const neighborsGrid   = document.getElementById('neighbors-grid');
-const nbQueryThumb    = document.getElementById('nb-query-thumb');
-const nbQueryName     = document.getElementById('nb-query-name');
-const nbQueryPath     = document.getElementById('nb-query-path');
-
-async function showNeighbors(id) {
-  const [info, simRes] = await Promise.all([
-    fetch(`/api/image/${id}/info`).then(r => r.json()),
-    fetch(`/api/similar/${id}?k=${NEIGHBORS_COUNT}`).then(r => r.json()),
-  ]);
-
-  nbQueryThumb.src      = `/api/thumbnail/${id}?size=200`;
-  nbQueryName.textContent = info.filename;
-  nbQueryPath.textContent = info.folder;
-
-  neighborsGrid.innerHTML = '';
-  simRes.ids.forEach((nid, rank) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'nb-thumb';
-
-    const img = document.createElement('img');
-    img.loading = 'lazy';
-    img.src = `/api/thumbnail/${nid}?size=200`;
-    img.alt = '';
-
-    const rankBadge = document.createElement('div');
-    rankBadge.className = 'nb-rank';
-    rankBadge.textContent = `#${rank + 1}`;
-
-    wrap.append(img, rankBadge);
-
-    // Click neighbor → show its neighbors (chain through collection)
-    wrap.addEventListener('click', () => showNeighbors(nid));
-
-    // Right-click or long-hover → open detail panel
-    wrap.addEventListener('contextmenu', e => {
-      e.preventDefault();
-      openDetail(nid);
-    });
-
-    neighborsGrid.appendChild(wrap);
-  });
-
-  // Also open detail for the query image itself
-  openDetail(id);
-
-  switchView('neighbors');
+  if (hit) showNeighbors(hit.id);
 }
 
 function switchView(mode) {
   viewMode = mode;
   if (mode === 'map') {
-    document.getElementById('canvas-wrap').style.display = '';
-    neighborsView.classList.remove('active');
+    wrap.style.display = 'block';
+    document.getElementById('neighbors-view').classList.remove('active');
     btnMap.style.display = 'none';
     scheduleDraw();
   } else {
-    document.getElementById('canvas-wrap').style.display = 'none';
-    neighborsView.classList.add('active');
-    btnMap.style.display = '';
+    wrap.style.display = 'none';
+    document.getElementById('neighbors-view').classList.add('active');
+    btnMap.style.display = 'block';
   }
 }
+btnMap.addEventListener('click', () => switchView('map'));
 
-// Clicking an image on the map opens neighbors view
-wrap.addEventListener('mouseup', () => {}); // handled above via handleMapClick → openDetail
-// We want single click on map to show neighbors, not just metadata.
-// Override openDetail to go to neighbors:
-const origOpenDetail = openDetail;
-window.openDetailFromMap = async function(id) {
-  await showNeighbors(id);
-};
+// ============================================================
+//  Neighbors view (Masonry Layout)
+// ============================================================
 
-// Patch handleMapClick to go straight to neighbors
-function handleMapClick(sx, sy) {
-  const hit = hitTest(sx, sy);
-  if (hit) showNeighbors(hit.id);
+const COLS = 8;
+const GAP = 16;
+
+function layoutMasonry() {
+  const container = document.getElementById('masonry-container');
+  if (!container || !masonryMain) return;
+
+  const width = container.clientWidth;
+  if (!width) return;
+
+  const colWidth = (width - GAP * (COLS - 1)) / COLS;
+  let heights = new Array(COLS).fill(0);
+
+  // 1. Layout Main Image (Spans 4 columns)
+  const mainEl = document.getElementById(`nb-${masonryMain.id}`);
+  if (mainEl) {
+    const mainW = colWidth * 4 + GAP * 3;
+    const mainH = masonryMain.height * (mainW / masonryMain.width);
+
+    mainEl.style.width = `${mainW}px`;
+    mainEl.style.height = `${mainH}px`;
+    mainEl.style.transform = `translate(0px, 0px)`;
+
+    // Fill the heights for the first 4 columns
+    for (let i = 0; i < 4; i++) {
+      heights[i] = mainH + GAP;
+    }
+  }
+
+  // 2. Layout similar images into the shortest column
+  for (const item of masonryItems) {
+    const el = document.getElementById(`nb-${item.id}`);
+    if (!el) continue;
+
+    let minCol = 0;
+    let minH = heights[0];
+    for (let i = 1; i < COLS; i++) {
+      if (heights[i] < minH) {
+        minH = heights[i];
+        minCol = i;
+      }
+    }
+
+    const itemH = item.height * (colWidth / item.width);
+    const x = minCol * (colWidth + GAP);
+    const y = minH;
+
+    el.style.width = `${colWidth}px`;
+    el.style.height = `${itemH}px`;
+    el.style.transform = `translate(${x}px, ${y}px)`;
+
+    heights[minCol] += itemH + GAP;
+  }
+
+  container.style.height = `${Math.max(...heights)}px`;
 }
 
-btnMap.addEventListener('click', () => switchView('map'));
+async function showNeighbors(id) {
+  switchView('neighbors');
+
+  const container = document.getElementById('masonry-container');
+  container.innerHTML = '';
+  document.getElementById('neighbors-view').scrollTop = 0;
+
+  const [info, simRes] = await Promise.all([
+    fetch(`/api/image/${id}/info`).then(r => r.json()),
+    fetch(`/api/similar/${id}`).then(r => r.json()),
+  ]);
+
+  masonryMain = info;
+  masonryItems = simRes.items;
+
+  // Create Main element
+  const mainEl = document.createElement('div');
+  mainEl.id = `nb-${info.id}`;
+  mainEl.className = 'masonry-item masonry-main';
+  mainEl.title = 'Click to view full resolution';
+  mainEl.innerHTML = `<img src="/api/thumbnail/${info.id}?size=1000" alt="">`;
+  mainEl.addEventListener('click', () => window.open(`/api/image/${info.id}/full`, '_blank'));
+  container.appendChild(mainEl);
+
+  // Create similar items
+  masonryItems.forEach((item, index) => {
+    const el = document.createElement('div');
+    el.id = `nb-${item.id}`;
+    el.className = 'masonry-item';
+    el.innerHTML = `
+      <img loading="lazy" src="/api/thumbnail/${item.id}?size=400" alt="">
+      <div class="nb-rank">#${index + 1}</div>
+    `;
+    el.addEventListener('click', () => showNeighbors(item.id));
+    container.appendChild(el);
+  });
+
+  layoutMasonry();
+}
 </script>
 </body>
 </html>

@@ -20,19 +20,15 @@ Dependencies:
 import argparse
 import hashlib
 import io
-import json
 import mimetypes
-import os
 import sqlite3
 import time
-import random
 from pathlib import Path
 
 import numpy as np
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
-from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
 from config import access_token
@@ -54,7 +50,6 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 SIGLIP_MODEL_ID = "google/siglip2-base-patch16-256"
 EMBED_DIM = 768
 BATCH_SIZE = 64
-TOP_K = 50  # neighbors returned per query (client decides how many to show)
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -69,21 +64,13 @@ def log(msg: str):
 
 def init_db():
     con = sqlite3.connect(DB_PATH, check_same_thread=False)
-    con.execute("PRAGMA foreign_keys = ON")
-
     con.execute("""
         CREATE TABLE IF NOT EXISTS images (
             id       TEXT PRIMARY KEY,
             path     TEXT UNIQUE NOT NULL,
+            width    INTEGER NOT NULL,
+            height   INTEGER NOT NULL,
             added_at REAL NOT NULL
-        )
-    """)
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS metadata (
-            image_id TEXT PRIMARY KEY REFERENCES images(id) ON UPDATE CASCADE ON DELETE CASCADE,
-            tags     TEXT DEFAULT '',
-            source   TEXT DEFAULT '',
-            comment  TEXT DEFAULT ''
         )
     """)
     con.execute("CREATE INDEX IF NOT EXISTS idx_images_path ON images(path)")
@@ -109,6 +96,13 @@ def find_images(paths: list[Path], recursive: bool) -> list[Path]:
             if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS
         )
     return sorted(set(result))
+
+def get_image_size(path: Path) -> tuple[int, int]:
+    try:
+        with Image.open(path) as img:
+            return img.size
+    except Exception:
+        return 100, 100
 
 # ---------------------------------------------------------------------------
 # Embedding
@@ -254,7 +248,6 @@ def run_embedding_pass(image_paths: list[Path], store: EmbeddingStore):
     store.save()
     del model
     if torch.cuda.is_available():
-        import torch
         torch.cuda.empty_cache()
 
 
@@ -350,11 +343,7 @@ app = FastAPI()
 
 @app.get("/api/layout")
 def api_layout():
-    """Return UMAP coordinates for all images as a compact list."""
-    rows = state.db.execute(
-        "SELECT id, path FROM images"
-    ).fetchall()
-
+    rows = state.db.execute("SELECT id, path FROM images").fetchall()
     items = []
     for db_id, path in rows:
         if db_id not in state.layout:
@@ -366,63 +355,41 @@ def api_layout():
 
 
 @app.get("/api/similar/{image_id}")
-def api_similar(image_id: str, k: int = Query(default=50, le=200)):
+def api_similar(image_id: str, k: int = Query(default=80, le=200)):
     if image_id not in state.id_to_path:
         raise HTTPException(404, "Image not found")
 
     neighbor_indices = state.store.query(image_id, k)
+    db_ids = [state.embed_idx_to_db_id.get(idx) for idx in neighbor_indices if state.embed_idx_to_db_id.get(idx) is not None]
+
+    if not db_ids:
+        return JSONResponse({"items": []})
+
+    placeholders = ",".join("?" for _ in db_ids)
+    rows = state.db.execute(f"SELECT id, width, height FROM images WHERE id IN ({placeholders})", db_ids).fetchall()
+    dim_map = {r[0]: (r[1], r[2]) for r in rows}
 
     result = []
-    for idx in neighbor_indices:
-        db_id = state.embed_idx_to_db_id.get(idx)
-        if db_id is not None:
-            result.append(db_id)
+    for db_id in db_ids:
+        w, h = dim_map.get(db_id, (100, 100))
+        result.append({"id": db_id, "width": w, "height": h})
 
-    return JSONResponse({"ids": result})
-
+    return JSONResponse({"items": result})
 
 @app.get("/api/image/{image_id}/info")
 def api_image_info(image_id: str):
-    row = state.db.execute("""
-        SELECT i.path, i.added_at, COALESCE(m.tags,''), COALESCE(m.source,''), COALESCE(m.comment,'')
-        FROM images i LEFT JOIN metadata m ON m.image_id = i.id
-        WHERE i.id = ?
-    """, (image_id,)).fetchone()
+    row = state.db.execute("SELECT path, width, height FROM images WHERE id = ?", (image_id,)).fetchone()
     if not row:
         raise HTTPException(404)
-    path, added_at, tags, source, comment = row
-    p = Path(path)
+    path, width, height = row
     return JSONResponse({
         "id": image_id,
-        "filename": p.name,
-        "path": path,
-        "folder": str(p.parent),
-        "added_at": added_at,
-        "tags": tags,
-        "source": source,
-        "comment": comment,
+        "width": width,
+        "height": height
     })
 
-
-@app.post("/api/image/{image_id}/meta")
-async def api_update_meta(image_id: str, request_body: dict):
-    tags = request_body.get("tags", "")
-    source = request_body.get("source", "")
-    comment = request_body.get("comment", "")
-    state.db.execute("""
-        INSERT INTO metadata (image_id, tags, source, comment)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(image_id) DO UPDATE SET
-            tags = excluded.tags,
-            source = excluded.source,
-            comment = excluded.comment
-    """, (image_id, tags, source, comment))
-    state.db.commit()
-    return JSONResponse({"ok": True})
-
-
 @app.get("/api/thumbnail/{image_id}")
-def api_thumbnail(image_id: str, size: int = Query(default=200, le=800)):
+def api_thumbnail(image_id: str, size: int = Query(default=200, le=1000)):
     row = state.db.execute("SELECT path FROM images WHERE id = ?", (image_id,)).fetchone()
     if not row:
         raise HTTPException(404)
@@ -484,25 +451,23 @@ def startup(scan_paths: list[Path], recursive: bool):
         ck = file_cache_key(p)
 
         if p_str not in db_state:
-            # File is completely new
+            w, h = get_image_size(p)
             state.db.execute(
-                "INSERT INTO images (id, path, added_at) VALUES (?, ?, ?)",
-                (ck, p_str, time.time())
+                "INSERT INTO images (id, path, width, height, added_at) VALUES (?, ?, ?, ?, ?)",
+                (ck, p_str, w, h, time.time())
             )
             new_count += 1
         elif db_state[p_str] != ck:
-            # File is at the same path but content has been modified
-            old_id = db_state[p_str]
-            state.db.execute("UPDATE metadata SET image_id = ? WHERE image_id = ?", (ck, old_id))
-            state.db.execute("UPDATE images SET id = ? WHERE path = ?", (ck, p_str))
+            w, h = get_image_size(p)
+            state.db.execute("UPDATE images SET id = ?, width = ?, height = ? WHERE path = ?", (ck, w, h, p_str))
             update_count += 1
 
     # Optional: clean up missing files
     current_paths = {str(p) for p in image_paths}
     deleted_paths = set(db_state.keys()) - current_paths
+    for p_str in deleted_paths:
+        state.db.execute("DELETE FROM images WHERE path = ?", (p_str,))
     if deleted_paths:
-        for p_str in deleted_paths:
-            state.db.execute("DELETE FROM images WHERE path = ?", (p_str,))
         log(f"Removed {len(deleted_paths)} missing images from DB")
 
     if new_count or update_count or deleted_paths:
