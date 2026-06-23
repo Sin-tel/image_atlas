@@ -95,7 +95,7 @@ body {
     display: block;
 }
 
-/* neighbors view (Pinterest Masonry) */
+/* neighbors view */
 #neighbors-view {
     display: none;
     height: 100%;
@@ -124,7 +124,7 @@ body {
     overflow: hidden;
     background: var(--surface);
     cursor: zoom-in;
-    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+    /*transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);*/
 }
 
 .masonry-item img {

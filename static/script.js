@@ -86,7 +86,7 @@ function screenToWorld(sx, sy) {
 
 function fitAll() {
     const pad = 0.05;
-    vp.scale = 1 - pad * 2;
+    vp.scale = 0.3;
     vp.tx = canvas.width * pad;
     vp.ty = canvas.height * pad;
 }
@@ -150,16 +150,33 @@ function drawDot(sx, sy, r, color) {
     ctx.fill();
 }
 
-function drawThumb(img, sx, sy, size) {
-    const half = size / 2;
-    const r = Math.max(2, 4 * vp.scale);
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(sx - half, sy - half, size, size, r);
-    ctx.clip();
-    ctx.drawImage(img, sx - half, sy - half, size, size);
-    ctx.restore();
+function drawThumb(img, sx, sy, maxSize) {
+  let drawW = maxSize;
+  let drawH = maxSize;
+
+  // Calculate proportional dimensions (longest side = maxSize)
+  if (img.width && img.height) {
+    const aspect = img.width / img.height;
+    if (aspect > 1) {
+      drawH = maxSize / aspect;
+    } else {
+      drawW = maxSize * aspect;
+    }
+  }
+
+  const halfW = drawW / 2;
+  const halfH = drawH / 2;
+  const r = Math.max(2, 4 * vp.scale);
+
+  ctx.save();
+  ctx.beginPath();
+  // Use the proportional dimensions for the mask and the image
+  ctx.roundRect(sx - halfW, sy - halfH, drawW, drawH, r);
+  ctx.clip();
+  ctx.drawImage(img, sx - halfW, sy - halfH, drawW, drawH);
+  ctx.restore();
 }
+
 
 function startLoad(id) {
     if (imgCache.has(id)) return;
