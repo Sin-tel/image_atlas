@@ -49,7 +49,6 @@ DB_PATH = CACHE_DIR / "metadata.db"
 EMBED_CACHE_PATH = CACHE_DIR / "embeddings.npz"
 LAYOUT_CACHE_PATH = CACHE_DIR / "umap_layout.npz"
 
-# IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif", ".gif"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 SIGLIP_MODEL_ID = "google/siglip2-base-patch16-256"
@@ -70,25 +69,26 @@ def log(msg: str):
 
 def init_db():
     con = sqlite3.connect(DB_PATH, check_same_thread=False)
+    con.execute("PRAGMA foreign_keys = ON")
+
     con.execute("""
         CREATE TABLE IF NOT EXISTS images (
-            id       INTEGER PRIMARY KEY,
+            id       TEXT PRIMARY KEY,
             path     TEXT UNIQUE NOT NULL,
-            cache_key TEXT NOT NULL,
             added_at REAL NOT NULL
         )
     """)
     con.execute("""
         CREATE TABLE IF NOT EXISTS metadata (
-            image_id INTEGER PRIMARY KEY REFERENCES images(id),
+            image_id TEXT PRIMARY KEY REFERENCES images(id) ON UPDATE CASCADE ON DELETE CASCADE,
             tags     TEXT DEFAULT '',
             source   TEXT DEFAULT '',
             comment  TEXT DEFAULT ''
         )
     """)
     con.execute("CREATE INDEX IF NOT EXISTS idx_images_path ON images(path)")
-    con.execute("CREATE INDEX IF NOT EXISTS idx_images_cache_key ON images(cache_key)")
     con.commit()
+
     return con
 
 # ---------------------------------------------------------------------------
@@ -250,10 +250,6 @@ def run_embedding_pass(image_paths: list[Path], store: EmbeddingStore):
 
         for p, v in zip(valid, vecs):
             store.add(file_cache_key(p), str(p), np.asarray(v, dtype=np.float32))
-        # if (i // BATCH_SIZE) % 10 == 0:
-        #     print("saving...")
-        #     store.save()
-
 
     store.save()
     del model
@@ -266,7 +262,7 @@ def run_embedding_pass(image_paths: list[Path], store: EmbeddingStore):
 # UMAP layout
 # ---------------------------------------------------------------------------
 
-def compute_umap_layout(store: EmbeddingStore, path_to_id: dict[str, int]) -> dict[int, tuple[float, float]]:
+def compute_umap_layout(store: EmbeddingStore, path_to_id: dict[str, str]) -> dict[str, tuple[float, float]]:
     """Returns {db_id: (x, y)} in [0, 1] range."""
 
     # Only lay out images that are both embedded and in the DB
@@ -290,7 +286,7 @@ def compute_umap_layout(store: EmbeddingStore, path_to_id: dict[str, int]) -> di
         if cached_ids == set(db_ids):
             log("UMAP layout loaded from cache")
             coords = cached["coords"]
-            return {int(db_id): (float(x), float(y))
+            return {str(db_id): (float(x), float(y))
                     for db_id, (x, y) in zip(cached["db_ids"], coords)}
 
     log(f"Computing UMAP layout for {len(embed_indices)} images (this takes a minute or two) ...")
@@ -313,11 +309,11 @@ def compute_umap_layout(store: EmbeddingStore, path_to_id: dict[str, int]) -> di
 
     np.savez_compressed(
         LAYOUT_CACHE_PATH,
-        db_ids=np.array(db_ids),
+        db_ids=np.array(db_ids, dtype=object),
         coords=coords_raw.astype(np.float32),
     )
     log("UMAP layout cached")
-    return {int(db_id): (float(x), float(y))
+    return {str(db_id): (float(x), float(y))
             for db_id, (x, y) in zip(db_ids, coords_raw)}
 
 
@@ -340,9 +336,9 @@ def make_thumbnail(path: Path, size: int) -> bytes:
 class AppState:
     db: sqlite3.Connection = None
     store: EmbeddingStore = None
-    layout: dict[int, tuple[float, float]] = {}  # db_id -> (x, y)
-    id_to_cache_key: dict[int, str] = {}
-    id_to_path: dict[int, str] = {}
+    layout: dict[str, tuple[float, float]] = {}  # db_id -> (x, y)
+    id_to_path: dict[str, str] = {}
+    embed_idx_to_db_id: dict[int, str] = {}
 
 
 state = AppState()
@@ -356,7 +352,7 @@ app = FastAPI()
 def api_layout():
     """Return UMAP coordinates for all images as a compact list."""
     rows = state.db.execute(
-        "SELECT i.id, i.path FROM images i"
+        "SELECT id, path FROM images"
     ).fetchall()
 
     items = []
@@ -370,25 +366,15 @@ def api_layout():
 
 
 @app.get("/api/similar/{image_id}")
-def api_similar(image_id: int, k: int = Query(default=50, le=200)):
-    row = state.db.execute(
-        "SELECT cache_key FROM images WHERE id = ?", (image_id,)
-    ).fetchone()
-    if not row:
+def api_similar(image_id: str, k: int = Query(default=50, le=200)):
+    if image_id not in state.id_to_path:
         raise HTTPException(404, "Image not found")
 
-    cache_key = row[0]
-    neighbor_indices = state.store.query(cache_key, k)
-
-    # Map embed indices back to db ids
-    embed_idx_to_db_id = {}
-    for db_id, ck in state.id_to_cache_key.items():
-        if ck in state.store.cache_key_to_idx:
-            embed_idx_to_db_id[state.store.cache_key_to_idx[ck]] = db_id
+    neighbor_indices = state.store.query(image_id, k)
 
     result = []
     for idx in neighbor_indices:
-        db_id = embed_idx_to_db_id.get(idx)
+        db_id = state.embed_idx_to_db_id.get(idx)
         if db_id is not None:
             result.append(db_id)
 
@@ -396,7 +382,7 @@ def api_similar(image_id: int, k: int = Query(default=50, le=200)):
 
 
 @app.get("/api/image/{image_id}/info")
-def api_image_info(image_id: int):
+def api_image_info(image_id: str):
     row = state.db.execute("""
         SELECT i.path, i.added_at, COALESCE(m.tags,''), COALESCE(m.source,''), COALESCE(m.comment,'')
         FROM images i LEFT JOIN metadata m ON m.image_id = i.id
@@ -419,7 +405,7 @@ def api_image_info(image_id: int):
 
 
 @app.post("/api/image/{image_id}/meta")
-async def api_update_meta(image_id: int, request_body: dict):
+async def api_update_meta(image_id: str, request_body: dict):
     tags = request_body.get("tags", "")
     source = request_body.get("source", "")
     comment = request_body.get("comment", "")
@@ -436,7 +422,7 @@ async def api_update_meta(image_id: int, request_body: dict):
 
 
 @app.get("/api/thumbnail/{image_id}")
-def api_thumbnail(image_id: int, size: int = Query(default=200, le=800)):
+def api_thumbnail(image_id: str, size: int = Query(default=200, le=800)):
     row = state.db.execute("SELECT path FROM images WHERE id = ?", (image_id,)).fetchone()
     if not row:
         raise HTTPException(404)
@@ -452,7 +438,7 @@ def api_thumbnail(image_id: int, size: int = Query(default=200, le=800)):
 
 
 @app.get("/api/image/{image_id}/full")
-def api_full_image(image_id: int):
+def api_full_image(image_id: str):
     row = state.db.execute("SELECT path FROM images WHERE id = ?", (image_id,)).fetchone()
     if not row:
         raise HTTPException(404)
@@ -488,26 +474,53 @@ def startup(scan_paths: list[Path], recursive: bool):
 
     # Sync DB
     log("Syncing database ...")
-    existing_paths = {r[0] for r in state.db.execute("SELECT path FROM images").fetchall()}
-    new_paths = [p for p in image_paths if str(p.resolve()) not in existing_paths
-                 and str(p) not in existing_paths]
+    db_state = {path: db_id for db_id, path in state.db.execute("SELECT id, path FROM images").fetchall()}
 
-    for p in new_paths:
+    new_count = 0
+    update_count = 0
+
+    for p in image_paths:
+        p_str = str(p)
         ck = file_cache_key(p)
-        state.db.execute(
-            "INSERT OR IGNORE INTO images (path, cache_key, added_at) VALUES (?, ?, ?)",
-            (str(p), ck, time.time())
-        )
-    if new_paths:
+
+        if p_str not in db_state:
+            # File is completely new
+            state.db.execute(
+                "INSERT INTO images (id, path, added_at) VALUES (?, ?, ?)",
+                (ck, p_str, time.time())
+            )
+            new_count += 1
+        elif db_state[p_str] != ck:
+            # File is at the same path but content has been modified
+            old_id = db_state[p_str]
+            state.db.execute("UPDATE metadata SET image_id = ? WHERE image_id = ?", (ck, old_id))
+            state.db.execute("UPDATE images SET id = ? WHERE path = ?", (ck, p_str))
+            update_count += 1
+
+    # Optional: clean up missing files
+    current_paths = {str(p) for p in image_paths}
+    deleted_paths = set(db_state.keys()) - current_paths
+    if deleted_paths:
+        for p_str in deleted_paths:
+            state.db.execute("DELETE FROM images WHERE path = ?", (p_str,))
+        log(f"Removed {len(deleted_paths)} missing images from DB")
+
+    if new_count or update_count or deleted_paths:
         state.db.commit()
-        log(f"Added {len(new_paths)} new images to DB")
+        log(f"Database sync: {new_count} new, {update_count} updated.")
 
     # Build lookup dicts
-    for db_id, path, ck in state.db.execute("SELECT id, path, cache_key FROM images").fetchall():
-        state.id_to_cache_key[db_id] = ck
+    for db_id, path in state.db.execute("SELECT id, path FROM images").fetchall():
         state.id_to_path[db_id] = path
 
     path_to_id = {path: db_id for db_id, path in state.id_to_path.items()}
+
+    # Compute reverse embed lookup explicitly once at startup
+    state.embed_idx_to_db_id = {
+        state.store.cache_key_to_idx[db_id]: db_id
+        for db_id in state.id_to_path
+        if db_id in state.store.cache_key_to_idx
+    }
 
     # UMAP layout
     state.layout = compute_umap_layout(state.store, path_to_id)
