@@ -1,0 +1,9 @@
+# If you have a hugging face access token, put it here and rename file to "config.py"
+# See: https://huggingface.co/docs/hub/security-tokens
+access_token = "hf_###"
+
+# The image folders you want to scan.
+scan_folders = [
+    r"C:\Users\username\Pictures\screenshots",
+    r"C:\Users\username\Pictures\art",
+]

@@ -14,7 +14,7 @@
     --muted: #71717a;
     --accent: #6366f1;
     --accent2: #818cf8;
-    --thumb-r: 14px;
+    --thumb-r: 10px;
 }
 
 body {
@@ -111,8 +111,8 @@ body {
 #masonry-container {
     position: relative;
     width: 100%;
+    /* Cap so it doesn't get insanely wide */
     max-width: 1800px;
-    /* Cap so it doesn't get insanely wide on 4k displays */
     margin: 0 auto;
 }
 

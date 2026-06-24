@@ -17,12 +17,12 @@ Dependencies:
     pip install transformers
 """
 
-import argparse
 import io
 import mimetypes
 import sqlite3
 import time
 from pathlib import Path
+import webbrowser
 
 import uvicorn
 from PIL import Image
@@ -34,6 +34,7 @@ from fastapi.staticfiles import StaticFiles
 from paths import DB_PATH, BASE_DIR
 from util import log, find_images, file_cache_key, get_image_size
 from embedding import EmbeddingStore, run_embedding_pass, compute_umap_layout
+from config import scan_folders
 
 
 def init_db():
@@ -57,7 +58,7 @@ def init_db():
 
 def make_thumbnail(path: Path, size: int) -> bytes:
     img = Image.open(path).convert("RGB")
-    img.thumbnail((size, size), Image.LANCZOS)
+    img.thumbnail((size, size))
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=82, optimize=True)
     return buf.getvalue()
@@ -174,18 +175,16 @@ def index():
     return (BASE_DIR / "static" / "index.html").read_text(encoding="utf-8")
 
 
-# ---------------------------------------------------------------------------
-# Startup
-# ---------------------------------------------------------------------------
+def main():
+    scan_paths = [Path(p) for p in scan_folders]
+    recursive = True
 
-
-def startup(scan_paths: list[Path], recursive: bool):
     log("=== imagepile startup ===")
     state.db = init_db()
     state.store = EmbeddingStore()
 
     # Scan for images
-    log("Scanning for images ...")
+    log("Scanning for images...")
     image_paths = find_images(scan_paths, recursive)
     log(f"Found {len(image_paths)} images")
 
@@ -193,7 +192,7 @@ def startup(scan_paths: list[Path], recursive: bool):
     run_embedding_pass(image_paths, state.store)
 
     # Sync DB
-    log("Syncing database ...")
+    log("Syncing database...")
     db_state = {
         path: db_id
         for db_id, path in state.db.execute("SELECT id, path FROM images").fetchall()
@@ -221,7 +220,7 @@ def startup(scan_paths: list[Path], recursive: bool):
             )
             update_count += 1
 
-    # Optional: clean up missing files
+    # Clean up missing files
     current_paths = {str(p) for p in image_paths}
     deleted_paths = set(db_state.keys()) - current_paths
     for p_str in deleted_paths:
@@ -249,31 +248,13 @@ def startup(scan_paths: list[Path], recursive: bool):
     # UMAP layout
     state.layout = compute_umap_layout(state.store, path_to_id)
     log(f"Layout ready for {len(state.layout)} images")
-    log("=== Ready — open http://localhost:8765 ===")
 
+    log("open http://localhost:8765")
+    webbrowser.open("http://localhost:8765")
 
-# ---------------------------------------------------------------------------
-# Entrypoint
-# ---------------------------------------------------------------------------
-
-
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--paths", nargs="+", required=True)
-    ap.add_argument("--recursive", action="store_true")
-    ap.add_argument("--port", type=int, default=8765)
-    args = ap.parse_args()
-
-    scan_paths = [Path(p) for p in args.paths]
-    for p in scan_paths:
-        if not p.exists():
-            print(f"ERROR: path does not exist: {p}")
-            raise SystemExit(1)
-
-    startup(scan_paths, args.recursive)
-
+    # Start app
     app.mount("/static", StaticFiles(directory="static", html=True), name="static")
-    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
+    uvicorn.run(app, host="127.0.0.1", port=8765, log_level="warning")
 
 
 if __name__ == "__main__":

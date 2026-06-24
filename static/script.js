@@ -1,5 +1,5 @@
-const MAP_THUMB_SIZE = 32;
-const ZOOM_THUMB_MIN = 1.2;
+let MAP_THUMB_SIZE = 32;
+let ZOOM_THUMB_MIN = 1.2;
 const PREFETCH_MARGIN = 1.5;
 const LRU_MAX = 2500;
 
@@ -42,6 +42,12 @@ function lruSet(id, val) {
     const data = await res.json();
     items = data.items;
     status.textContent = `${items.length.toLocaleString()} images`;
+
+    const n = items.length;
+
+    // Adjust image size and min zoom based on total number of images
+    MAP_THUMB_SIZE = 4 * Math.round(700 / Math.sqrt(n));
+    ZOOM_THUMB_MIN = Math.sqrt(n) / 70;
 
     resizeCanvas();
     fitAll();
@@ -97,8 +103,10 @@ let rafId = null;
 let needsDraw = true;
 
 function renderLoop() {
-    if (needsDraw) { draw();
-        needsDraw = false; }
+    if (needsDraw) {
+        draw();
+        needsDraw = false;
+    }
     rafId = requestAnimationFrame(renderLoop);
 }
 
@@ -151,30 +159,29 @@ function drawDot(sx, sy, r, color) {
 }
 
 function drawThumb(img, sx, sy, maxSize) {
-  let drawW = maxSize;
-  let drawH = maxSize;
+    let drawW = maxSize;
+    let drawH = maxSize;
 
-  // Calculate proportional dimensions (longest side = maxSize)
-  if (img.width && img.height) {
-    const aspect = img.width / img.height;
-    if (aspect > 1) {
-      drawH = maxSize / aspect;
-    } else {
-      drawW = maxSize * aspect;
+    // Calculate proportional dimensions (longest side = maxSize)
+    if (img.width && img.height) {
+        const aspect = img.width / img.height;
+        if (aspect > 1) {
+            drawH = maxSize / aspect;
+        } else {
+            drawW = maxSize * aspect;
+        }
     }
-  }
 
-  const halfW = drawW / 2;
-  const halfH = drawH / 2;
-  const r = Math.max(2, 4 * vp.scale);
+    const halfW = drawW / 2;
+    const halfH = drawH / 2;
+    const r = Math.max(2, 2 * vp.scale);
 
-  ctx.save();
-  ctx.beginPath();
-  // Use the proportional dimensions for the mask and the image
-  ctx.roundRect(sx - halfW, sy - halfH, drawW, drawH, r);
-  ctx.clip();
-  ctx.drawImage(img, sx - halfW, sy - halfH, drawW, drawH);
-  ctx.restore();
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(sx - halfW, sy - halfH, drawW, drawH, r);
+    ctx.clip();
+    ctx.drawImage(img, sx - halfW, sy - halfH, drawW, drawH);
+    ctx.restore();
 }
 
 
@@ -182,8 +189,10 @@ function startLoad(id) {
     if (imgCache.has(id)) return;
     lruSet(id, 'loading');
     const img = new Image();
-    img.onload = () => { lruSet(id, img);
-        scheduleDraw(); };
+    img.onload = () => {
+        lruSet(id, img);
+        scheduleDraw();
+    };
     img.onerror = () => { lruSet(id, 'error'); };
     img.src = `/api/thumbnail/${id}?size=200`;
 }
@@ -269,8 +278,10 @@ function hitTest(sx, sy) {
         if (it.x < tl.wx || it.x > br.wx || it.y < tl.wy || it.y > br.wy) continue;
         const { sx: cx, sy: cy } = worldToScreen(it.x, it.y);
         const d = Math.hypot(sx - cx, sy - cy);
-        if (d < thumbHalf && d < bestDist) { best = it;
-            bestDist = d; }
+        if (d < thumbHalf && d < bestDist) {
+            best = it;
+            bestDist = d;
+        }
     }
     return best;
 }
@@ -295,11 +306,9 @@ function switchView(mode) {
 }
 btnMap.addEventListener('click', () => switchView('map'));
 
-// ============================================================
-// Neighbors view (Masonry Layout)
-// ============================================================
+// Neighbor view
 
-const COLS = 8;
+const COLS = 6;
 const GAP = 16;
 
 function layoutMasonry() {
@@ -312,23 +321,34 @@ function layoutMasonry() {
     const colWidth = (width - GAP * (COLS - 1)) / COLS;
     let heights = new Array(COLS).fill(0);
 
-    // 1. Layout Main Image (Spans 4 columns)
+    // Layout main image
     const mainEl = document.getElementById(`nb-${masonryMain.id}`);
     if (mainEl) {
-        const mainW = colWidth * 4 + GAP * 3;
+        const aspect = masonryMain.width / masonryMain.height;
+        // console.log(aspect)
+
+        let n_cols = 3
+        if (aspect > 1.4) {
+            n_cols = 4
+        } else if (aspect < 0.7) {
+            n_cols = 2
+        }
+
+        const mainW = colWidth * n_cols + GAP * (n_cols - 1);
         const mainH = masonryMain.height * (mainW / masonryMain.width);
+
 
         mainEl.style.width = `${mainW}px`;
         mainEl.style.height = `${mainH}px`;
         mainEl.style.transform = `translate(0px, 0px)`;
 
-        // Fill the heights for the first 4 columns
-        for (let i = 0; i < 4; i++) {
+        // Fill the heights for the first n columns
+        for (let i = 0; i < n_cols; i++) {
             heights[i] = mainH + GAP;
         }
     }
 
-    // 2. Layout similar images into the shortest column
+    // Layout similar images into the shortest column
     for (const item of masonryItems) {
         const el = document.getElementById(`nb-${item.id}`);
         if (!el) continue;

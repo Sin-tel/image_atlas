@@ -1,8 +1,13 @@
 import numpy as np
 from pathlib import Path
 from PIL import Image
+from tqdm import tqdm
 
-from config import access_token
+try:
+    from config import access_token
+except ImportError:
+    access_token = None  # type: ignore[assignment]
+
 from paths import EMBED_CACHE_PATH, LAYOUT_CACHE_PATH
 from util import log, file_cache_key
 
@@ -87,10 +92,10 @@ class EmbeddingStore:
         return top.tolist()
 
 
-def load_siglip_model(device):
+def load_model(device):
     from transformers import AutoModel, AutoProcessor
 
-    log(f"Loading SigLIP2 ({SIGLIP_MODEL_ID}) ...")
+    log(f"Loading SigLIP2 ({SIGLIP_MODEL_ID})")
     processor = AutoProcessor.from_pretrained(SIGLIP_MODEL_ID, token=access_token)
     model = (
         AutoModel.from_pretrained(SIGLIP_MODEL_ID, token=access_token).to(device).eval()
@@ -102,17 +107,15 @@ def embed_batch(processor, model, device, images: list) -> np.ndarray:
     import torch
 
     inputs = processor(images=images, return_tensors="pt").to(device)
+
     with torch.inference_mode():
-        feats = model.get_image_features(**inputs)
-    # get_image_features returns a tensor directly for SigLIP2
-    if hasattr(feats, "pooler_output"):
-        feats = feats.pooler_output
+        out = model.get_image_features(**inputs)
+    feats = out.pooler_output
     return feats.float().cpu().numpy()
 
 
 def run_embedding_pass(image_paths: list[Path], store: EmbeddingStore):
     import torch
-    from tqdm import tqdm
 
     todo = [p for p in image_paths if not store.has(file_cache_key(p))]
 
@@ -120,10 +123,10 @@ def run_embedding_pass(image_paths: list[Path], store: EmbeddingStore):
         log(f"All {len(image_paths)} images already embedded")
         return
 
-    log(f"Embedding {len(todo)} new images ({len(image_paths) - len(todo)} cached) ...")
+    log(f"Embedding {len(todo)} new images ({len(image_paths) - len(todo)} cached)")
     device = "cuda" if torch.cuda.is_available() else "cpu"
     log(f"Using device: {device}")
-    processor, model = load_siglip_model(device)
+    processor, model = load_model(device)
 
     for i in tqdm(range(0, len(todo), BATCH_SIZE), desc="embedding"):
         batch_paths = todo[i : i + BATCH_SIZE]
@@ -139,9 +142,9 @@ def run_embedding_pass(image_paths: list[Path], store: EmbeddingStore):
             continue
 
         try:
-            vecs = embed_batch(processor, model, device, imgs)
+            vecs = embed_batch(processor, model, device, imgs)  # type: ignore[var-annotated]
         except Exception as e:
-            log(f"  batch failed ({e}), trying one-by-one ...")
+            log(f"  batch failed ({e}), trying one-by-one.")
             vecs = []
             for img in imgs:
                 try:
@@ -159,9 +162,7 @@ def run_embedding_pass(image_paths: list[Path], store: EmbeddingStore):
         torch.cuda.empty_cache()
 
 
-# ---------------------------------------------------------------------------
 # UMAP layout
-# ---------------------------------------------------------------------------
 
 
 def compute_umap_layout(
@@ -198,9 +199,7 @@ def compute_umap_layout(
                 for db_id, (x, y) in zip(cached["db_ids"], coords)
             }
 
-    log(
-        f"Computing UMAP layout for {len(embed_indices)} images (this takes a minute or two) ..."
-    )
+    log(f"Computing UMAP layout for {len(embed_indices)} images...")
     import umap
 
     mat = store.get_normalized_matrix(embed_indices)
@@ -214,12 +213,10 @@ def compute_umap_layout(
     )
     coords_raw = reducer.fit_transform(mat)
 
-    # Normalize to [0.05, 0.95] so points aren't right at the edges
+    # Normalize to [0, 1]
     for axis in range(2):
         lo, hi = coords_raw[:, axis].min(), coords_raw[:, axis].max()
-        coords_raw[:, axis] = 0.05 + 0.9 * (coords_raw[:, axis] - lo) / max(
-            hi - lo, 1e-6
-        )
+        coords_raw[:, axis] = (coords_raw[:, axis] - lo) / max(hi - lo, 1e-6)
 
     np.savez_compressed(
         LAYOUT_CACHE_PATH,
