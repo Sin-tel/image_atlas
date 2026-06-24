@@ -8,7 +8,7 @@ Local image browser with automatic embedding similarity search (using SigLIP2).
 
 Using `uv`, just run:
 ```bash
-uv init
+uv sync
 uv run python server.py
 ```
 This will automatically open http://localhost:8765/.
