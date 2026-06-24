@@ -2,7 +2,7 @@
 
 Local image browser with automatic embedding similarity search (using SigLIP2).
 
-<img src="media/screenshot.png" style="width:800px;"/>
+<img src="media/screenshot.jpg" style="width:800px;"/>
 
 # Installation
 
