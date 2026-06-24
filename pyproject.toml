@@ -1,7 +1,7 @@
 [project]
-name = "imagepile"
+name = "image_atlas"
 version = "0.1.0"
-description = "Add your description here"
+description = "Local image browser with similarity search."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

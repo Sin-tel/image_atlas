@@ -1,22 +1,3 @@
-"""
-imagepile — local image exploration server
-==========================================
-
-Serves a UMAP-based visual map of your image collection, with
-click-to-explore similarity search. All local, no cloud.
-
-Usage:
-    python server.py --paths "D:/Art" "D:/Screenshots" [--recursive]
-
-First run: scans folders, embeds images, computes UMAP layout.
-Subsequent runs: loads from cache, only re-embeds new/changed files.
-
-Dependencies:
-    pip install fastapi uvicorn[standard] pillow numpy tqdm umap-learn
-    pip install torch --index-url https://download.pytorch.org/whl/cu121
-    pip install transformers
-"""
-
 import io
 import mimetypes
 import sqlite3
