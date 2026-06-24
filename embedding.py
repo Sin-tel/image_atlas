@@ -165,6 +165,50 @@ def run_embedding_pass(image_paths: list[Path], store: EmbeddingStore):
 # UMAP layout
 
 
+def relax_layout(
+    coords: np.ndarray, min_dist=0.008, iterations=50, learning_rate=0.1
+) -> np.ndarray:
+    """Gently pushes overlapping points away from each other."""
+    from sklearn.neighbors import NearestNeighbors
+
+    log("Running anti-overlap relaxation...")
+
+    n_points = coords.shape[0]
+    new_coords = coords.copy()
+
+    for _ in tqdm(range(iterations)):
+        nn = NearestNeighbors(radius=min_dist)
+        nn.fit(new_coords)
+        distances, indices = nn.radius_neighbors(new_coords)
+
+        displacements = np.zeros_like(new_coords)
+        for i in range(n_points):
+            neighbors = indices[i]
+            if len(neighbors) <= 1:
+                continue
+
+            # Vector from neighbors to point i
+            diffs = new_coords[i] - new_coords[neighbors]
+            dists = distances[i]
+
+            # Only consider points strictly closer than min_dist (ignore self)
+            mask = (dists > 0) & (dists < min_dist)
+            if not np.any(mask):
+                continue
+
+            diffs = diffs[mask]
+            dists = dists[mask]
+
+            # Push force proportional to how severely they are overlapping
+            push = (min_dist - dists) / dists
+            force = np.sum(diffs * push[:, None], axis=0)
+            displacements[i] = force * learning_rate
+
+        new_coords += displacements
+
+    return new_coords
+
+
 def compute_umap_layout(
     store: EmbeddingStore, path_to_id: dict[str, str]
 ) -> dict[str, tuple[float, float]]:
@@ -206,7 +250,7 @@ def compute_umap_layout(
     reducer = umap.UMAP(
         n_components=2,
         n_neighbors=20,
-        min_dist=0.3,
+        min_dist=0.5,
         metric="cosine",
         random_state=42,
         verbose=True,
@@ -217,6 +261,11 @@ def compute_umap_layout(
     for axis in range(2):
         lo, hi = coords_raw[:, axis].min(), coords_raw[:, axis].max()
         coords_raw[:, axis] = (coords_raw[:, axis] - lo) / max(hi - lo, 1e-6)
+
+    min_dist = 0.6 / np.sqrt(len(embed_indices))
+    log(f"min_dist = {min_dist:.5f}")
+
+    coords_raw = relax_layout(coords_raw, min_dist=min_dist, iterations=32)
 
     np.savez_compressed(
         LAYOUT_CACHE_PATH,

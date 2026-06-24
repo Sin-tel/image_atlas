@@ -1,6 +1,7 @@
 import hashlib
 import time
 from pathlib import Path
+import numpy as np
 from PIL import Image
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
@@ -28,9 +29,38 @@ def find_images(paths: list[Path], recursive: bool) -> list[Path]:
     return sorted(set(result))
 
 
-def get_image_size(path: Path) -> tuple[int, int]:
+WHITE_THRESH = 220
+BLACK_THRESH = 20
+
+
+def get_color(img):
+    # (16, 16, 3)
+    img = img.resize((16, 16), resample=0)
+    arr = np.array(img)
+    arr = arr[2:14, 2:14]
+
+    # Mask out near-white and near-black pixels
+    brightness = arr.mean(axis=2)
+    mask = (brightness < WHITE_THRESH) & (brightness > BLACK_THRESH)
+
+    if mask.sum() < 4:
+        return arr.mean(axis=(0, 1))
+
+    return arr[mask].mean(axis=0)
+
+
+def get_image_metadata(path: Path) -> tuple[int, int, str]:
     try:
         with Image.open(path) as img:
-            return img.size
-    except Exception:
-        return 100, 100
+            img = img.convert("RGB")
+            w, h = img.size
+
+            avg = get_color(img)
+            r, g, b = np.clip(avg, 0, 255).astype(int)
+
+            hex_color = f"#{r:02x}{g:02x}{b:02x}"
+            return w, h, hex_color
+
+    except Exception as e:
+        log(f"{e}")
+        return 100, 100, "#333333"

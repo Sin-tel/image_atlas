@@ -23,6 +23,7 @@ import sqlite3
 import time
 from pathlib import Path
 import webbrowser
+from tqdm import tqdm
 
 import uvicorn
 from PIL import Image
@@ -32,7 +33,7 @@ from fastapi.staticfiles import StaticFiles
 
 
 from paths import DB_PATH, BASE_DIR
-from util import log, find_images, file_cache_key, get_image_size
+from util import log, find_images, file_cache_key, get_image_metadata
 from embedding import EmbeddingStore, run_embedding_pass, compute_umap_layout
 from config import scan_folders
 
@@ -46,6 +47,7 @@ def init_db():
             path     TEXT UNIQUE NOT NULL,
             width    INTEGER NOT NULL,
             height   INTEGER NOT NULL,
+            color    TEXT NOT NULL,
             added_at REAL NOT NULL
         )
     """
@@ -82,13 +84,13 @@ app = FastAPI()
 # API routes
 @app.get("/api/layout")
 def api_layout():
-    rows = state.db.execute("SELECT id, path FROM images").fetchall()
+    rows = state.db.execute("SELECT id, path, color FROM images").fetchall()
     items = []
-    for db_id, path in rows:
+    for db_id, path, color in rows:
         if db_id not in state.layout:
             continue
         x, y = state.layout[db_id]
-        items.append({"id": db_id, "x": round(x, 5), "y": round(y, 5)})
+        items.append({"id": db_id, "x": round(x, 5), "y": round(y, 5), "color": color})
 
     return JSONResponse({"items": items})
 
@@ -201,22 +203,22 @@ def main():
     new_count = 0
     update_count = 0
 
-    for p in image_paths:
+    for p in tqdm(image_paths):
         p_str = str(p)
         ck = file_cache_key(p)
 
         if p_str not in db_state:
-            w, h = get_image_size(p)
+            w, h, col = get_image_metadata(p)
             state.db.execute(
-                "INSERT INTO images (id, path, width, height, added_at) VALUES (?, ?, ?, ?, ?)",
-                (ck, p_str, w, h, time.time()),
+                "INSERT INTO images (id, path, width, height, color, added_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (ck, p_str, w, h, col, time.time()),
             )
             new_count += 1
         elif db_state[p_str] != ck:
-            w, h = get_image_size(p)
+            w, h, col = get_image_metadata(p)
             state.db.execute(
-                "UPDATE images SET id = ?, width = ?, height = ? WHERE path = ?",
-                (ck, w, h, p_str),
+                "UPDATE images SET id = ?, width = ?, height = ?, color = ? WHERE path = ?",
+                (ck, w, h, col, p_str),
             )
             update_count += 1
 

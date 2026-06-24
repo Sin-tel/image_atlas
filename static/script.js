@@ -137,39 +137,41 @@ function draw() {
 
             if (!img) {
                 startLoad(it.id);
-                drawDot(sx, sy, 4, '#3f3f50');
+                drawColorBlock(sx, sy, thumbHalf * 2, it.color);
             } else if (img === 'loading') {
-                drawDot(sx, sy, 4, '#4f4f60');
+                drawColorBlock(sx, sy, thumbHalf * 2, it.color);
             } else if (img === 'error') {
-                drawDot(sx, sy, 3, '#7f2020');
+                drawColorBlock(sx, sy, thumbHalf * 2, '#441111');
             } else {
                 if (inViewport) drawThumb(img, sx, sy, thumbHalf * 2);
             }
         } else {
-            drawDot(sx, sy, 5 * vp.scale, '#6366f1');
+            drawColorBlock(sx, sy, MAP_THUMB_SIZE * vp.scale, it.color);
         }
     }
 }
 
-function drawDot(sx, sy, r, color) {
+function drawColorBlock(sx, sy, size, color) {
+    const half = size / 2;
+    // const r = Math.max(2, 4 * vp.scale);
+
     ctx.beginPath();
-    ctx.arc(sx, sy, Math.max(r, 1.5), 0, Math.PI * 2);
+    // ctx.roundRect(sx - half, sy - half, size, size, r);
+    ctx.rect(sx - half, sy - half, size, size);
     ctx.fillStyle = color;
     ctx.fill();
 }
 
-function drawThumb(img, sx, sy, maxSize) {
-    let drawW = maxSize;
-    let drawH = maxSize;
 
-    // Calculate proportional dimensions (longest side = maxSize)
+function drawThumb(img, sx, sy, size) {
+    let drawW = size;
+    let drawH = size;
+
+    // Calculate proportional dimensions
     if (img.width && img.height) {
-        const aspect = img.width / img.height;
-        if (aspect > 1) {
-            drawH = maxSize / aspect;
-        } else {
-            drawW = maxSize * aspect;
-        }
+        const aspect = Math.sqrt(img.width / img.height);
+        drawH = size / aspect;
+        drawW = size * aspect;
     }
 
     const halfW = drawW / 2;
