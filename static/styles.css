@@ -39,14 +39,14 @@ body {
 }
 
 #topbar h1 {
-    font-size: 14px;
+    font-size: 24px;
     font-weight: 600;
     color: var(--accent2);
     letter-spacing: .04em;
 }
 
 #status {
-    font-size: 12px;
+    font-size: 24px;
     color: var(--muted);
     margin-left: 4px;
 }

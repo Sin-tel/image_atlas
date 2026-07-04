@@ -113,7 +113,9 @@ def api_image_info(image_id: str):
     if not row:
         raise HTTPException(404)
     path, width, height = row
-    return JSONResponse({"id": image_id, "width": width, "height": height})
+    return JSONResponse(
+        {"id": image_id, "width": width, "height": height, "path": path}
+    )
 
 
 @app.get("/api/thumbnail/{image_id}")

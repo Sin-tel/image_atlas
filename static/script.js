@@ -52,7 +52,6 @@ function lruSet(id, val) {
     resizeCanvas();
     fitAll();
     renderLoop();
-    status.textContent = `${items.length.toLocaleString()} images — scroll/pinch to zoom, click to explore`;
 })();
 
 // Canvas sizing & Event listeners
@@ -297,6 +296,7 @@ function switchView(mode) {
     viewMode = mode;
     if (mode === 'map') {
         wrap.style.display = 'block';
+        status.textContent = `${items.length.toLocaleString()} images`;
         document.getElementById('neighbors-view').classList.remove('active');
         btnMap.style.display = 'none';
         scheduleDraw();
@@ -392,6 +392,8 @@ async function showNeighbors(id) {
 
     masonryMain = info;
     masonryItems = simRes.items;
+
+    status.textContent = `${info.path}`;
 
     // Create Main element
     const mainEl = document.createElement('div');
