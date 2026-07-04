@@ -41,18 +41,34 @@ function lruSet(id, val) {
     const res = await fetch('/api/layout');
     const data = await res.json();
     items = data.items;
-    status.textContent = `${items.length.toLocaleString()} images`;
-
-    const n = items.length;
-
-    // Adjust image size and min zoom based on total number of images
-    MAP_THUMB_SIZE = 4 * Math.round(700 / Math.sqrt(n));
-    ZOOM_THUMB_MIN = Math.sqrt(n) / 70;
 
     resizeCanvas();
     fitAll();
     renderLoop();
+
+    // Read URL on initial load to support refresh
+    const params = new URLSearchParams(window.location.search);
+    const imageId = params.get('image');
+
+    if (imageId) {
+        showNeighbors(imageId, false);
+    } else {
+        showMap(false);
+    }
 })();
+
+
+// Browser back button
+window.addEventListener('popstate', () => {
+    const params = new URLSearchParams(window.location.search);
+    const imageId = params.get('image');
+
+    if (imageId) {
+        showNeighbors(imageId, false); // false = don't push to history again
+    } else {
+        showMap(false);
+    }
+});
 
 // Canvas sizing & Event listeners
 
@@ -287,26 +303,25 @@ function hitTest(sx, sy) {
     return best;
 }
 
-function handleMapClick(sx, sy) {
-    const hit = hitTest(sx, sy);
-    if (hit) showNeighbors(hit.id);
+function showMap(pushHistory = true) {
+    if (pushHistory) history.pushState({ view: 'map' }, '', '/');
+
+    viewMode = 'map';
+    document.getElementById('canvas-wrap').style.display = 'block';
+    document.getElementById('neighbors-view').classList.remove('active');
+    btnMap.style.display = 'none';
+
+    status.textContent = `${items.length.toLocaleString()} images`;
+
+    scheduleDraw();
 }
 
-function switchView(mode) {
-    viewMode = mode;
-    if (mode === 'map') {
-        wrap.style.display = 'block';
-        status.textContent = `${items.length.toLocaleString()} images`;
-        document.getElementById('neighbors-view').classList.remove('active');
-        btnMap.style.display = 'none';
-        scheduleDraw();
-    } else {
-        wrap.style.display = 'none';
-        document.getElementById('neighbors-view').classList.add('active');
-        btnMap.style.display = 'block';
-    }
+function handleMapClick(sx, sy) {
+    const hit = hitTest(sx, sy);
+    if (hit) showNeighbors(hit.id, true);
 }
-btnMap.addEventListener('click', () => switchView('map'));
+
+btnMap.addEventListener('click', () => showMap(true));
 
 // Neighbor view
 
@@ -378,8 +393,15 @@ function layoutMasonry() {
     container.style.height = `${Math.max(...heights)}px`;
 }
 
-async function showNeighbors(id) {
-    switchView('neighbors');
+async function showNeighbors(id, pushHistory = true) {
+    if (pushHistory) {
+        history.pushState({ id: id }, '', `/?image=${id}`);
+    }
+
+    viewMode = 'neighbors';
+    document.getElementById('canvas-wrap').style.display = 'none';
+    document.getElementById('neighbors-view').classList.add('active');
+    btnMap.style.display = 'block';
 
     const container = document.getElementById('masonry-container');
     container.innerHTML = '';
@@ -413,7 +435,7 @@ async function showNeighbors(id) {
       <img loading="lazy" src="/api/thumbnail/${item.id}?size=400" alt="">
       <div class="nb-rank">#${index + 1}</div>
     `;
-        el.addEventListener('click', () => showNeighbors(item.id));
+        el.addEventListener('click', () => showNeighbors(item.id, true));
         container.appendChild(el);
     });
 
